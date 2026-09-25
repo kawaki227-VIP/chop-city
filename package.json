@@ -1,0 +1,17 @@
+{
+  "name": "chop-city-vercel",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@vercel/blob": "^1.1.1",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  },
+  "devDependencies": {
+    "vercel": "^48.0.0"
+  }
+}

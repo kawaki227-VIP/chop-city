@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#070b18">
+  <meta name="description" content="CHOP CITY — Marketplace BY KAWAKI227">
+  <title>CHOP CITY — Marketplace</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span>⚡</span> CHOP CITY</div>
+    <nav>
+      <button class="ghost" onclick="openModal('infoModal')">ℹ Infos</button>
+      <button class="ghost" onclick="openModal('reportModal')">⚠ Signaler</button>
+      <button class="adminBtn" onclick="openAdmin()">⚙ Admin</button>
+      <button class="sellBtn" onclick="openModal('sellModal')">＋ Vendre</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="pill">🚀 MARKETPLACE • BY KAWAKI227</div>
+      <h1>Achete. Vends. <span>Chop.</span></h1>
+      <p>Une marketplace simple, rapide et stylée pour partager tes produits.</p>
+      <div class="heroActions">
+        <button class="primary" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">Explorer les produits</button>
+        <button class="secondary" onclick="openModal('sellModal')">＋ Mettre un produit</button>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <div class="searchWrap">🔎 <input id="search" placeholder="Rechercher un produit..." oninput="render()"></div>
+      <select id="category" onchange="render()"><option value="">Toutes les catégories</option></select>
+    </section>
+
+    <section id="products" class="products">
+      <div class="loading">Chargement des produits...</div>
+    </section>
+  </main>
+
+  <footer>© 2026 CHOP CITY — <b>BY KAWAKI227</b></footer>
+
+  <div id="sellModal" class="modal"><div class="modalBox">
+    <button class="close" onclick="closeModal('sellModal')">×</button>
+    <h2>＋ Vendre un produit</h2>
+    <form id="sellForm">
+      <input name="name" placeholder="Nom du produit" required>
+      <input name="price" placeholder="Prix (ex: 5 000 FCFA)" required>
+      <input name="seller" placeholder="Ton nom / pseudo" required>
+      <input name="whatsapp" placeholder="WhatsApp (facultatif)">
+      <select name="category">
+        <option>Gaming</option><option>Tech</option><option>Mode</option><option>Services</option><option>Autre</option>
+      </select>
+      <textarea name="description" placeholder="Description" required></textarea>
+      <label class="file">🖼️ Photo <input type="file" name="image" accept="image/*"></label>
+      <button class="primary wide">Publier</button>
+      <div id="sellMsg" class="msg"></div>
+    </form>
+  </div></div>
+
+  <div id="infoModal" class="modal"><div class="modalBox">
+    <button class="close" onclick="closeModal('infoModal')">×</button>
+    <h2>ℹ CHOP CITY</h2>
+    <p>CHOP CITY est une marketplace créée pour acheter et vendre facilement.</p>
+    <p>Les achats se font directement avec le vendeur via WhatsApp.</p>
+    <p class="muted">BY KAWAKI227 ⚡</p>
+  </div></div>
+
+  <div id="reportModal" class="modal"><div class="modalBox">
+    <button class="close" onclick="closeModal('reportModal')">×</button>
+    <h2>⚠ Signaler un problème</h2>
+    <form id="reportForm">
+      <input name="product" placeholder="Produit concerné">
+      <input name="reason" placeholder="Motif">
+      <textarea name="message" placeholder="Explique le problème" required></textarea>
+      <button class="primary wide">Envoyer le signalement</button>
+      <div id="reportMsg" class="msg"></div>
+    </form>
+  </div></div>
+
+  <div id="adminModal" class="modal"><div class="modalBox adminBox">
+    <button class="close" onclick="closeModal('adminModal')">×</button>
+    <h2>⚙ Panel Admin</h2>
+    <div id="adminLogin">
+      <input id="adminKey" type="password" placeholder="Clé admin">
+      <button class="primary wide" onclick="loginAdmin()">Entrer</button>
+      <div id="adminLoginMsg" class="msg"></div>
+    </div>
+    <div id="adminPanel" hidden>
+      <div class="adminTop"><button class="secondary" onclick="loadAdmin()">↻ Actualiser</button><button class="danger" onclick="logoutAdmin()">Déconnexion</button></div>
+      <div id="adminList"></div>
+      <form id="editForm" hidden>
+        <h3>Modifier le produit</h3>
+        <input type="hidden" name="id">
+        <input name="name" placeholder="Nom" required>
+        <input name="price" placeholder="Prix" required>
+        <input name="seller" placeholder="Vendeur" required>
+        <input name="whatsapp" placeholder="WhatsApp">
+        <input name="category" placeholder="Catégorie">
+        <textarea name="description" placeholder="Description" required></textarea>
+        <label class="file">🖼️ Nouvelle photo <input type="file" name="image" accept="image/*"></label>
+        <button class="primary wide">Enregistrer</button>
+        <button type="button" class="secondary wide" onclick="cancelEdit()">Annuler</button>
+        <div id="editMsg" class="msg"></div>
+      </form>
+    </div>
+  </div></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

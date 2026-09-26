@@ -7,7 +7,8 @@ Marketplace CHOP CITY — BY KAWAKI227.
 1. Importe ce projet dans Vercel.
 2. Dans **Storage**, crée un **Blob Store** et connecte-le au projet.
 3. Ajoute les variables d'environnement :
-   - `BLOB_READ_WRITE_TOKEN`
+   - `CHOPBLOB_READ_WRITE_TOKEN
+- `CHOPBLOB_STORE_ID``
    - `TELEGRAM_BOT_TOKEN`
    - `TELEGRAM_CHAT_ID`
    - `ADMIN_KEY`

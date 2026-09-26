@@ -121,6 +121,7 @@
       .card img{height:190px}
     }
   </style>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#5ecbff">
 </head>
 
 <body>
@@ -145,11 +146,11 @@
       </div>
     </section>
 
+    <section class="hero" style="padding-top:10px"><div class="actions"><button class="btn" id="popularBtn">🔥 Populaires</button><button class="btn" id="featuredBtn">🏆 À la une</button><button class="btn" id="favoritesBtn">❤️ Favoris</button><button class="btn" id="installBtn" style="display:none">📱 Installer</button></div></section>
     <section class="search">
       <input id="searchInput" type="search" placeholder="🔎 Rechercher un produit...">
-      <select id="categoryFilter">
-        <option value="">Toutes les catégories</option>
-      </select>
+      <select id="categoryFilter"><option value="">Toutes les catégories</option></select>
+      <select id="priceFilter"><option value="">Tous les prix</option><option value="0-5000">≤ 5 000</option><option value="5000-20000">5 000–20 000</option><option value="20000-999999999">≥ 20 000</option></select>
     </section>
 
     <section class="grid" id="productsGrid">
@@ -173,7 +174,7 @@
         <input class="field" name="seller" placeholder="Nom du vendeur" required>
         <input class="field" name="category" placeholder="Catégorie" required>
         <textarea class="field" name="description" placeholder="Description" required></textarea>
-        <input class="field" type="file" name="image" accept="image/*">
+        <input class="field" type="file" name="images" accept="image/*" multiple>
         <div class="form-actions">
           <button class="btn" type="button" data-close="sellModal">Annuler</button>
           <button class="btn primary" type="submit">Publier</button>
@@ -279,7 +280,7 @@ $("infoBtn").onclick = () => openModal("infoModal");
 $("reportBtn").onclick = () => openModal("reportModal");
 $("adminBtn").onclick = () => openModal("adminModal");
 
-let products = [];
+let products = []; window.mode="";
 
 function escapeHTML(value){
   return String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -297,39 +298,44 @@ function waLink(product){
 }
 
 function renderProducts(){
-  const q = $("searchInput").value.toLowerCase().trim();
-  const cat = $("categoryFilter").value;
-  const filtered = products.filter(p => {
-    const hay = [p.name,p.description,p.seller,p.category,p.price].join(" ").toLowerCase();
-    return (!q || hay.includes(q)) && (!cat || p.category === cat);
+  const q=$("searchInput").value.toLowerCase().trim(); const cat=$("categoryFilter").value; const pf=$("priceFilter").value;
+  let filtered=products.filter(p=>{const hay=[p.name,p.description,p.seller,p.category,p.price].join(' ').toLowerCase();let price=Number(String(p.price).replace(/[^0-9]/g,''))||0;let okPrice=!pf||(()=>{let [a,b]=pf.split('-').map(Number);return price>=a&&price<=b})()*1;return(!q||hay.includes(q))&&(!cat||p.category===cat)&&okPrice;});
+  if(window.mode==='popular') filtered.sort((a,b)=>(b.views||0)-(a.views||0));
+  if(window.mode==='featured') filtered=filtered.filter(p=>p.featured);
+  if(window.mode==='favorites') filtered=filtered.filter(p=>getFavs().includes(p.id));
+  const grid=$("productsGrid"); if(!filtered.length){grid.innerHTML='<div class="empty">Aucun produit trouvé.</div>';return;}
+  grid.innerHTML=filtered.map(p=>{const image=p.image||OG_IMAGE;const isNew=p.createdAt&&(Date.now()-new Date(p.createdAt).getTime()<7*864e5);const fav=getFavs().includes(p.id);return `<article class="card"><div style="position:relative"><img src="${escapeHTML(image)}" alt="${escapeHTML(p.name)}" loading="lazy" onerror="this.src='${OG_IMAGE}'">${isNew?'<span style="position:absolute;top:10px;left:10px;background:#5ecbff;color:#061016;padding:5px 8px;border-radius:9px;font-size:12px;font-weight:900">🆕 Nouveau</span>':''}${p.featured?'<span style="position:absolute;top:10px;right:10px;background:#ffbf00;color:#111;padding:5px 8px;border-radius:9px;font-size:12px;font-weight:900">🏆 À la une</span>':''}</div><div class="card-body"><div class="tag">#${escapeHTML(p.category||'Produit')}</div><h3>${escapeHTML(p.name)}</h3><div class="desc">${escapeHTML(p.description)}</div><div class="price">${escapeHTML(p.price)}</div><div class="seller">👤 ${escapeHTML(p.seller)} · 👁️ ${p.views||0}</div><div class="card-actions"><a class="btn primary" href="${waLink(p)}" target="_blank" rel="noopener" onclick="trackContact('${encodeURIComponent(p.id)}')">Acheter</a><button class="btn" onclick="toggleFav('${encodeURIComponent(p.id)}')">${fav?'❤️':'🤍'}</button><button class="btn" onclick="shareProduct('${encodeURIComponent(p.id)}')">🔗</button></div></div></article>`}).join('');
+  filtered.forEach(p=>{if(!sessionStorage.getItem('viewed_'+p.id)){sessionStorage.setItem('viewed_'+p.id,'1');fetch(API+'/products/'+encodeURIComponent(p.id)+'/view',{method:'POST'}).catch(()=>{});}});
+}
+function getFavs(){try{return JSON.parse(localStorage.getItem('chop_favs')||'[]')}catch{return[]}}
+function toggleFav(id){id=decodeURIComponent(id);let a=getFavs();a=a.includes(id)?a.filter(x=>x!==id):[...a,id];localStorage.setItem('chop_favs',JSON.stringify(a));renderProducts()}
+function shareProduct(id){id=decodeURIComponent(id);const url=SITE_LINK+'p/'+encodeURIComponent(id);if(navigator.share)navigator.share({title:'CHOP CITY',url}).catch(()=>{});else navigator.clipboard?.writeText(url).then(()=>alert('✅ Lien du produit copié !'))}
+function trackContact(id){fetch(API+'/products/'+decodeURIComponent(id)+'/contact',{method:'POST'}).catch(()=>{})}
+
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    if(!file.type.startsWith('image/')) return reject(new Error('Fichier image invalide'));
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      try{
+        const max=1600;
+        const scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+        const canvas=document.createElement('canvas');
+        canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+        canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+        const ctx=canvas.getContext('2d');
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+        canvas.toBlob(blob=>{
+          URL.revokeObjectURL(url);
+          if(!blob) return reject(new Error('Compression de l’image impossible'));
+          resolve(new File([blob], (file.name.replace(/\.[^.]+$/,'')||'image')+'.jpg', {type:'image/jpeg'}));
+        },'image/jpeg',0.82);
+      }catch(err){ URL.revokeObjectURL(url); reject(err); }
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Image illisible'));};
+    img.src=url;
   });
-
-  const grid = $("productsGrid");
-
-  if(!filtered.length){
-    grid.innerHTML = '<div class="empty">Aucun produit trouvé.</div>';
-    return;
-  }
-
-  grid.innerHTML = filtered.map(p => {
-    const image = p.image || OG_IMAGE;
-    return `
-      <article class="card">
-        <img src="${escapeHTML(image)}" alt="${escapeHTML(p.name)}" loading="lazy"
-             onerror="this.src='${OG_IMAGE}'">
-        <div class="card-body">
-          <div class="tag">#${escapeHTML(p.category || "Produit")}</div>
-          <h3>${escapeHTML(p.name)}</h3>
-          <div class="desc">${escapeHTML(p.description)}</div>
-          <div class="price">${escapeHTML(p.price)}</div>
-          <div class="seller">👤 ${escapeHTML(p.seller)}</div>
-          <div class="card-actions">
-            <a class="btn primary" href="${waLink(p)}" target="_blank" rel="noopener">Acheter</a>
-          </div>
-        </div>
-      </article>
-    `;
-  }).join("");
 }
 
 function fillCategories(){
@@ -355,7 +361,7 @@ async function loadProducts(){
 }
 
 $("searchInput").addEventListener("input", renderProducts);
-$("categoryFilter").addEventListener("change", renderProducts);
+$("categoryFilter").addEventListener("change", renderProducts); $("priceFilter").addEventListener("change", renderProducts);
 
 $("sellForm").addEventListener("submit", async e => {
   e.preventDefault();
@@ -363,7 +369,17 @@ $("sellForm").addEventListener("submit", async e => {
   status.textContent = "Publication en cours...";
 
   try{
+    // Compresse les images côté téléphone avant l'envoi pour éviter les erreurs
+    // de taille des fonctions Vercel (les photos de caméra peuvent être très lourdes).
     const formData = new FormData(e.target);
+    const files = Array.from(e.target.querySelector('input[type="file"][name="images"]')?.files || []);
+    if(files.length){
+      formData.delete("images");
+      for(const file of files.slice(0,5)){
+        const compressed = await compressImage(file);
+        formData.append("images", compressed, compressed.name);
+      }
+    }
     const res = await fetch(API + "/products", {method:"POST", body:formData});
     const data = await res.json().catch(() => ({}));
 
@@ -447,6 +463,12 @@ async function deleteProduct(encodedId){
     alert("❌ Suppression refusée.");
   }
 }
+
+$("popularBtn").onclick=()=>{window.mode=window.mode==='popular'?'':'popular';renderProducts()};
+$("featuredBtn").onclick=()=>{window.mode=window.mode==='featured'?'':'featured';renderProducts()};
+$("favoritesBtn").onclick=()=>{window.mode=window.mode==='favorites'?'':'favorites';renderProducts()};
+let deferredInstall; window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$("installBtn").style.display='inline-block'}); $("installBtn").onclick=async()=>{if(deferredInstall){deferredInstall.prompt();deferredInstall=null}};
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
 loadProducts();
 </script>

@@ -1,0 +1,10 @@
+{
+  "name":"CHOP CITY — Marketplace",
+  "short_name":"CHOP CITY",
+  "start_url":"/",
+  "display":"standalone",
+  "background_color":"#070707",
+  "theme_color":"#5ecbff",
+  "description":"CHOP CITY — Marketplace BY KAWAKI227",
+  "icons":[{"src":"https://files.catbox.moe/oaxlfi.jpg","sizes":"192x192","type":"image/jpeg"},{"src":"https://files.catbox.moe/oaxlfi.jpg","sizes":"512x512","type":"image/jpeg"}]
+}

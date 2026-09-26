@@ -35,7 +35,7 @@ async function readState(){
   catch { return {products:[],events:[],reports:[]}; }
 }
 async function writeState(state){
-  const saved = await put(DATA_PATH, JSON.stringify(state), blobOpts({contentType:'application/json', addRandomSuffix:false}));
+  const saved = await put(DATA_PATH, JSON.stringify(state), blobOpts({contentType:'application/json', addRandomSuffix:false, allowOverwrite:true}));
   return saved.url;
 }
 async function telegram(text, keyboard){

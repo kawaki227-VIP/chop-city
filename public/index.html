@@ -54,9 +54,9 @@
       border:1px solid #3a3a3a;background:#111;color:#fff;
       border-radius:12px;padding:10px 14px;transition:.2s;
     }
-    .btn:hover{transform:translateY(-1px);border-color:#5ecbff}
+    .btn:hover{transform:translateY(-1px);border-color:#ffbf00}
     .primary{
-      background:#5ecbff;color:#080808;border-color:#5ecbff;font-weight:800;
+      background:#ffbf00;color:#080808;border-color:#ffbf00;font-weight:800;
     }
     .hero{
       max-width:1200px;margin:0 auto;padding:42px 16px 24px;
@@ -86,10 +86,10 @@
     }
     .card img{width:100%;height:210px;object-fit:cover;display:block;background:#181818}
     .card-body{padding:15px}
-    .tag{display:inline-block;color:#5ecbff;font-size:12px;margin-bottom:8px}
+    .tag{display:inline-block;color:#ffbf00;font-size:12px;margin-bottom:8px}
     .card h3{margin-bottom:7px}
     .desc{color:#aaa;font-size:14px;line-height:1.45;min-height:40px}
-    .price{font-size:21px;font-weight:900;color:#5ecbff;margin:12px 0}
+    .price{font-size:21px;font-weight:900;color:#ffbf00;margin:12px 0}
     .seller{font-size:13px;color:#777;margin-bottom:12px}
     .card-actions{display:flex;gap:8px}
     .card-actions .btn{flex:1}
@@ -107,7 +107,7 @@
       width:min(620px,100%);background:#101010;border:1px solid #343434;
       border-radius:18px;padding:20px;box-shadow:0 20px 70px #000;
     }
-    .box h2{margin-bottom:15px;color:#5ecbff}
+    .box h2{margin-bottom:15px;color:#ffbf00}
     .close{float:right;background:none;border:0;color:#aaa;font-size:24px}
     .field{margin:7px 0}
     textarea.field{min-height:110px;resize:vertical}
@@ -121,7 +121,6 @@
       .card img{height:190px}
     }
   </style>
-<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#5ecbff">
 </head>
 
 <body>
@@ -146,11 +145,11 @@
       </div>
     </section>
 
-    <section class="hero" style="padding-top:10px"><div class="actions"><button class="btn" id="popularBtn">🔥 Populaires</button><button class="btn" id="featuredBtn">🏆 À la une</button><button class="btn" id="favoritesBtn">❤️ Favoris</button><button class="btn" id="installBtn" style="display:none">📱 Installer</button></div></section>
     <section class="search">
       <input id="searchInput" type="search" placeholder="🔎 Rechercher un produit...">
-      <select id="categoryFilter"><option value="">Toutes les catégories</option></select>
-      <select id="priceFilter"><option value="">Tous les prix</option><option value="0-5000">≤ 5 000</option><option value="5000-20000">5 000–20 000</option><option value="20000-999999999">≥ 20 000</option></select>
+      <select id="categoryFilter">
+        <option value="">Toutes les catégories</option>
+      </select>
     </section>
 
     <section class="grid" id="productsGrid">
@@ -174,7 +173,7 @@
         <input class="field" name="seller" placeholder="Nom du vendeur" required>
         <input class="field" name="category" placeholder="Catégorie" required>
         <textarea class="field" name="description" placeholder="Description" required></textarea>
-        <input class="field" type="file" name="images" accept="image/*" multiple>
+        <input class="field" type="file" name="image" accept="image/*">
         <div class="form-actions">
           <button class="btn" type="button" data-close="sellModal">Annuler</button>
           <button class="btn primary" type="submit">Publier</button>
@@ -280,7 +279,7 @@ $("infoBtn").onclick = () => openModal("infoModal");
 $("reportBtn").onclick = () => openModal("reportModal");
 $("adminBtn").onclick = () => openModal("adminModal");
 
-let products = []; window.mode="";
+let products = [];
 
 function escapeHTML(value){
   return String(value ?? "").replace(/[&<>"']/g, c => ({
@@ -298,19 +297,40 @@ function waLink(product){
 }
 
 function renderProducts(){
-  const q=$("searchInput").value.toLowerCase().trim(); const cat=$("categoryFilter").value; const pf=$("priceFilter").value;
-  let filtered=products.filter(p=>{const hay=[p.name,p.description,p.seller,p.category,p.price].join(' ').toLowerCase();let price=Number(String(p.price).replace(/[^0-9]/g,''))||0;let okPrice=!pf||(()=>{let [a,b]=pf.split('-').map(Number);return price>=a&&price<=b})()*1;return(!q||hay.includes(q))&&(!cat||p.category===cat)&&okPrice;});
-  if(window.mode==='popular') filtered.sort((a,b)=>(b.views||0)-(a.views||0));
-  if(window.mode==='featured') filtered=filtered.filter(p=>p.featured);
-  if(window.mode==='favorites') filtered=filtered.filter(p=>getFavs().includes(p.id));
-  const grid=$("productsGrid"); if(!filtered.length){grid.innerHTML='<div class="empty">Aucun produit trouvé.</div>';return;}
-  grid.innerHTML=filtered.map(p=>{const image=p.image||OG_IMAGE;const isNew=p.createdAt&&(Date.now()-new Date(p.createdAt).getTime()<7*864e5);const fav=getFavs().includes(p.id);return `<article class="card"><div style="position:relative"><img src="${escapeHTML(image)}" alt="${escapeHTML(p.name)}" loading="lazy" onerror="this.src='${OG_IMAGE}'">${isNew?'<span style="position:absolute;top:10px;left:10px;background:#5ecbff;color:#061016;padding:5px 8px;border-radius:9px;font-size:12px;font-weight:900">🆕 Nouveau</span>':''}${p.featured?'<span style="position:absolute;top:10px;right:10px;background:#ffbf00;color:#111;padding:5px 8px;border-radius:9px;font-size:12px;font-weight:900">🏆 À la une</span>':''}</div><div class="card-body"><div class="tag">#${escapeHTML(p.category||'Produit')}</div><h3>${escapeHTML(p.name)}</h3><div class="desc">${escapeHTML(p.description)}</div><div class="price">${escapeHTML(p.price)}</div><div class="seller">👤 ${escapeHTML(p.seller)} · 👁️ ${p.views||0}</div><div class="card-actions"><a class="btn primary" href="${waLink(p)}" target="_blank" rel="noopener" onclick="trackContact('${encodeURIComponent(p.id)}')">Acheter</a><button class="btn" onclick="toggleFav('${encodeURIComponent(p.id)}')">${fav?'❤️':'🤍'}</button><button class="btn" onclick="shareProduct('${encodeURIComponent(p.id)}')">🔗</button></div></div></article>`}).join('');
-  filtered.forEach(p=>{if(!sessionStorage.getItem('viewed_'+p.id)){sessionStorage.setItem('viewed_'+p.id,'1');fetch(API+'/products/'+encodeURIComponent(p.id)+'/view',{method:'POST'}).catch(()=>{});}});
+  const q = $("searchInput").value.toLowerCase().trim();
+  const cat = $("categoryFilter").value;
+  const filtered = products.filter(p => {
+    const hay = [p.name,p.description,p.seller,p.category,p.price].join(" ").toLowerCase();
+    return (!q || hay.includes(q)) && (!cat || p.category === cat);
+  });
+
+  const grid = $("productsGrid");
+
+  if(!filtered.length){
+    grid.innerHTML = '<div class="empty">Aucun produit trouvé.</div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(p => {
+    const image = p.image || OG_IMAGE;
+    return `
+      <article class="card">
+        <img src="${escapeHTML(image)}" alt="${escapeHTML(p.name)}" loading="lazy"
+             onerror="this.src='${OG_IMAGE}'">
+        <div class="card-body">
+          <div class="tag">#${escapeHTML(p.category || "Produit")}</div>
+          <h3>${escapeHTML(p.name)}</h3>
+          <div class="desc">${escapeHTML(p.description)}</div>
+          <div class="price">${escapeHTML(p.price)}</div>
+          <div class="seller">👤 ${escapeHTML(p.seller)}</div>
+          <div class="card-actions">
+            <a class="btn primary" href="${waLink(p)}" target="_blank" rel="noopener">Acheter</a>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join("");
 }
-function getFavs(){try{return JSON.parse(localStorage.getItem('chop_favs')||'[]')}catch{return[]}}
-function toggleFav(id){id=decodeURIComponent(id);let a=getFavs();a=a.includes(id)?a.filter(x=>x!==id):[...a,id];localStorage.setItem('chop_favs',JSON.stringify(a));renderProducts()}
-function shareProduct(id){id=decodeURIComponent(id);const url=SITE_LINK+'p/'+encodeURIComponent(id);if(navigator.share)navigator.share({title:'CHOP CITY',url}).catch(()=>{});else navigator.clipboard?.writeText(url).then(()=>alert('✅ Lien du produit copié !'))}
-function trackContact(id){fetch(API+'/products/'+decodeURIComponent(id)+'/contact',{method:'POST'}).catch(()=>{})}
 
 function fillCategories(){
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))].sort();
@@ -335,7 +355,7 @@ async function loadProducts(){
 }
 
 $("searchInput").addEventListener("input", renderProducts);
-$("categoryFilter").addEventListener("change", renderProducts); $("priceFilter").addEventListener("change", renderProducts);
+$("categoryFilter").addEventListener("change", renderProducts);
 
 $("sellForm").addEventListener("submit", async e => {
   e.preventDefault();
@@ -427,12 +447,6 @@ async function deleteProduct(encodedId){
     alert("❌ Suppression refusée.");
   }
 }
-
-$("popularBtn").onclick=()=>{window.mode=window.mode==='popular'?'':'popular';renderProducts()};
-$("featuredBtn").onclick=()=>{window.mode=window.mode==='featured'?'':'featured';renderProducts()};
-$("favoritesBtn").onclick=()=>{window.mode=window.mode==='favorites'?'':'favorites';renderProducts()};
-let deferredInstall; window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e;$("installBtn").style.display='inline-block'}); $("installBtn").onclick=async()=>{if(deferredInstall){deferredInstall.prompt();deferredInstall=null}};
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
 loadProducts();
 </script>

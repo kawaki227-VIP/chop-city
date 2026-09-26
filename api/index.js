@@ -1,229 +1,108 @@
-import express from "express";
-import multer from "multer";
-import { put, list } from "@vercel/blob";
-import crypto from "node:crypto";
+const express = require('express');
+const multer = require('multer');
+const { put, list, del } = require('@vercel/blob');
 
 const app = express();
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }
+const upload = multer({ storage: multer.memoryStorage(), limits: { files: 5, fileSize: 4 * 1024 * 1024 } });
+app.use(express.json({ limit: '1mb' }));
+
+const TOKEN = process.env.CHOPBLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN;
+const STORE_ID = process.env.CHOPBLOB_STORE_ID;
+const ADMIN_KEY = process.env.ADMIN_KEY;
+const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
+const WA = process.env.WHATSAPP_NUMBER || '22781289418';
+const OG = 'https://files.catbox.moe/oaxlfi.jpg';
+const SITE = 'https://chop-city.vercel.app/';
+const DATA_PATH = 'chop-city/data.json';
+
+function blobOpts(extra={}) {
+  const o = { access:'public', ...extra };
+  if (TOKEN) o.token = TOKEN;
+  if (STORE_ID) o.storeId = STORE_ID;
+  return o;
+}
+function admin(req){ return !!ADMIN_KEY && req.headers['x-admin-key'] === ADMIN_KEY; }
+function id(){ return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,9); }
+function now(){ return new Date().toISOString(); }
+function normalize(p){ return {...p, status: p.status || 'approved', views:Number(p.views||0), contacts:Number(p.contacts||0), featured:!!p.featured}; }
+async function readState(){
+  if(!TOKEN && !STORE_ID) return {products:[], events:[], reports:[]};
+  const r = await list(blobOpts({prefix:'chop-city/data.json'}));
+  const b = r.blobs?.find(x => x.pathname === DATA_PATH) || r.blobs?.[0];
+  if(!b) return {products:[],events:[],reports:[]};
+  try { const res=await fetch(b.url,{cache:'no-store'}); const d=await res.json(); return {products:(d.products||[]).map(normalize),events:d.events||[],reports:d.reports||[]}; }
+  catch { return {products:[],events:[],reports:[]}; }
+}
+async function writeState(state){
+  const saved = await put(DATA_PATH, JSON.stringify(state), blobOpts({contentType:'application/json', addRandomSuffix:false}));
+  return saved.url;
+}
+async function telegram(text, keyboard){
+  if(!TG_TOKEN || !TG_CHAT) return;
+  const body={chat_id:TG_CHAT,text,parse_mode:'HTML'};
+  if(keyboard) body.reply_markup={inline_keyboard:keyboard};
+  try{ await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); }catch{}
+}
+function esc(s){return String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+app.get('/api/health',(req,res)=>res.json({ok:true,version:'7.0.0'}));
+app.get('/api/config',(req,res)=>res.json({whatsapp:WA,site:SITE}));
+
+app.get('/api/products', async (req,res)=>{
+  try{
+    const s=await readState();
+    const all=admin(req);
+    res.json((all?s.products:s.products.filter(p=>p.status==='approved')).sort((a,b)=>(b.featured-a.featured)||(new Date(b.createdAt)-new Date(a.createdAt))));
+  }catch(e){res.status(500).json({error:'Impossible de charger les produits'});}
 });
 
-app.use(express.json({ limit: "1mb" }));
-
-const ADMIN_KEY = process.env.ADMIN_KEY || "";
-const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || "22781289418";
-const PRODUCTS_FILE = "chop-city/products.json";
-const BLOB_TOKEN = process.env.CHOPBLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN || "";
-const BLOB_STORE_ID = process.env.CHOPBLOB_STORE_ID || "";
-
-const blobOptions = {
-  token: BLOB_TOKEN,
-  ...(BLOB_STORE_ID ? { storeId: BLOB_STORE_ID } : {})
-};
-
-function adminOk(req) {
-  const key = req.headers["x-admin-key"];
-  return Boolean(ADMIN_KEY) && key === ADMIN_KEY;
-}
-
-async function getBlobUrl(pathname) {
-  const result = await list({ prefix: pathname, ...blobOptions });
-  return result.blobs?.find(b => b.pathname === pathname)?.url || null;
-}
-
-async function readProducts() {
-  const url = await getBlobUrl(PRODUCTS_FILE);
-  if (!url) return [];
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) return [];
-  try {
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveProducts(products) {
-  await put(PRODUCTS_FILE, JSON.stringify(products, null, 2), {
-    access: "public",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    ...blobOptions
-  });
-}
-
-async function notifyTelegram(text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        disable_web_page_preview: true
-      })
-    });
-  } catch (e) {
-    console.error("Telegram error:", e);
-  }
-}
-
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, name: "CHOP CITY", version: "4.0.0" });
-});
-
-app.get("/api/config", (_req, res) => {
-  res.json({ whatsapp: WHATSAPP_NUMBER });
-});
-
-app.get("/api/products", async (_req, res) => {
-  try {
-    const products = await readProducts();
-    res.json(products);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Impossible de charger les produits." });
-  }
-});
-
-app.post("/api/products", upload.single("image"), async (req, res) => {
-  try {
-    const { name, price, seller, category, description, whatsapp } = req.body;
-
-    if (!name || !price || !seller || !description) {
-      return res.status(400).json({ error: "Nom, prix, vendeur et description sont obligatoires." });
+app.post('/api/products', upload.array('images',5), async (req,res)=>{
+  try{
+    const s=await readState();
+    const p={id:id(),name:req.body.name||'',price:req.body.price||'',seller:req.body.seller||'',category:req.body.category||'Autre',description:req.body.description||'',images:[],image:'',status:'pending',featured:false,views:0,contacts:0,createdAt:now()};
+    if(!p.name||!p.price||!p.seller||!p.description) return res.status(400).json({error:'Champs obligatoires manquants'});
+    for(const f of (req.files||[])){
+      if(!TOKEN) return res.status(500).json({error:'Stockage image non configuré : CHOPBLOB_READ_WRITE_TOKEN manquant.'});
+      if(!STORE_ID) return res.status(500).json({error:'Stockage image non configuré : CHOPBLOB_STORE_ID manquant.'});
+      const ext=(f.originalname.match(/\.[a-z0-9]+$/i)||['.jpg'])[0].toLowerCase();
+      const b=await put(`chop-city/images/${p.id}-${id()}${ext}`,f.buffer,blobOpts({contentType:f.mimetype || 'image/jpeg', addRandomSuffix:false}));
+      if(!b?.url) throw new Error('Vercel Blob n’a pas retourné d’URL image');
+      p.images.push(b.url);
     }
-
-    let image = "";
-    if (req.file) {
-      if (!req.file.mimetype.startsWith("image/")) {
-        return res.status(400).json({ error: "Le fichier doit être une image." });
-      }
-      const ext = (req.file.originalname.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "");
-      const blob = await put(
-        `chop-city/products/${crypto.randomUUID()}.${ext || "jpg"}`,
-        req.file.buffer,
-        {
-          access: "public",
-          contentType: req.file.mimetype,
-          ...blobOptions
-        }
-      );
-      image = blob.url;
-    }
-
-    const product = {
-      id: crypto.randomUUID(),
-      name: String(name).trim().slice(0, 100),
-      price: String(price).trim().slice(0, 50),
-      seller: String(seller).trim().slice(0, 80),
-      category: String(category || "Autre").trim().slice(0, 40),
-      description: String(description).trim().slice(0, 1200),
-      image,
-      whatsapp: String(whatsapp || WHATSAPP_NUMBER).replace(/[^\d+]/g, ""),
-      createdAt: new Date().toISOString()
-    };
-
-    const products = await readProducts();
-    products.unshift(product);
-    await saveProducts(products);
-
-    await notifyTelegram(
-      `🛍️ NOUVEAU PRODUIT — CHOP CITY\n\n` +
-      `📦 ${product.name}\n` +
-      `💰 ${product.price}\n` +
-      `👤 ${product.seller}\n` +
-      `🏷️ ${product.category}\n` +
-      `📝 ${product.description}\n` +
-      `📱 WhatsApp: ${product.whatsapp}`
-    );
-
-    res.status(201).json(product);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur lors de l'ajout du produit." });
-  }
+    p.image=p.images[0]||OG;
+    s.products.push(p); await writeState(s);
+    await telegram(`🆕 <b>Nouveau produit en attente</b>\n\n📦 ${esc(p.name)}\n💰 ${esc(p.price)}\n👤 ${esc(p.seller)}\n🏷️ ${esc(p.category)}\n🆔 <code>${esc(p.id)}</code>`,[[{text:'🌐 Ouvrir CHOP CITY',url:SITE}]]);
+    res.status(201).json({ok:true,message:'Produit envoyé pour validation',product:p});
+  }catch(e){console.error('UPLOAD_PRODUCT_ERROR',e);res.status(500).json({error:'Erreur lors de la publication : '+(e?.message||'upload image impossible')});}
 });
 
-app.put("/api/products/:id", upload.single("image"), async (req, res) => {
-  if (!adminOk(req)) return res.status(401).json({ error: "Clé admin invalide." });
-
-  try {
-    const products = await readProducts();
-    const index = products.findIndex(p => p.id === req.params.id);
-    if (index < 0) return res.status(404).json({ error: "Produit introuvable." });
-
-    const old = products[index];
-    let image = old.image || "";
-
-    if (req.file) {
-      const ext = (req.file.originalname.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "");
-      const blob = await put(
-        `chop-city/products/${crypto.randomUUID()}.${ext || "jpg"}`,
-        req.file.buffer,
-        { access: "public", contentType: req.file.mimetype, ...blobOptions }
-      );
-      image = blob.url;
-    }
-
-    products[index] = {
-      ...old,
-      name: String(req.body.name ?? old.name).trim().slice(0, 100),
-      price: String(req.body.price ?? old.price).trim().slice(0, 50),
-      seller: String(req.body.seller ?? old.seller).trim().slice(0, 80),
-      category: String(req.body.category ?? old.category).trim().slice(0, 40),
-      description: String(req.body.description ?? old.description).trim().slice(0, 1200),
-      whatsapp: String(req.body.whatsapp ?? old.whatsapp).replace(/[^\d+]/g, ""),
-      image
-    };
-
-    await saveProducts(products);
-    await notifyTelegram(`✏️ PRODUIT MODIFIÉ — CHOP CITY\n\n📦 ${products[index].name}\n👤 ${products[index].seller}`);
-
-    res.json(products[index]);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur lors de la modification." });
-  }
+app.post('/api/products/:id/view', async (req,res)=>{
+  try{const s=await readState();const p=s.products.find(x=>x.id===req.params.id);if(!p)return res.sendStatus(404);p.views++;s.events.push({type:'view',productId:p.id,at:now()});await writeState(s);res.json({ok:true});}catch(e){res.status(500).json({error:'stats'});}
+});
+app.post('/api/products/:id/contact', async (req,res)=>{
+  try{const s=await readState();const p=s.products.find(x=>x.id===req.params.id);if(!p)return res.sendStatus(404);p.contacts++;s.events.push({type:'contact',productId:p.id,at:now()});await writeState(s);res.json({ok:true});}catch(e){res.status(500).json({error:'stats'});}
 });
 
-app.delete("/api/products/:id", async (req, res) => {
-  if (!adminOk(req)) return res.status(401).json({ error: "Clé admin invalide." });
-
-  try {
-    const products = await readProducts();
-    const product = products.find(p => p.id === req.params.id);
-    if (!product) return res.status(404).json({ error: "Produit introuvable." });
-
-    const remaining = products.filter(p => p.id !== req.params.id);
-    await saveProducts(remaining);
-
-    await notifyTelegram(`🗑️ PRODUIT SUPPRIMÉ — CHOP CITY\n\n📦 ${product.name}\n👤 ${product.seller}`);
-    res.json({ ok: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Erreur lors de la suppression." });
-  }
+app.put('/api/products/:id', upload.array('images',5), async (req,res)=>{
+  if(!admin(req)) return res.status(403).json({error:'Accès refusé'});
+  try{const s=await readState();const p=s.products.find(x=>x.id===req.params.id);if(!p)return res.sendStatus(404);
+    for(const k of ['name','price','seller','category','description','status']) if(req.body[k]!==undefined) p[k]=req.body[k];
+    if(req.body.featured!==undefined) p.featured=req.body.featured==='true'||req.body.featured===true;
+    if(req.files?.length){p.images=[];for(const f of req.files){const ext=(f.originalname.match(/\.[a-z0-9]+$/i)||['.jpg'])[0];const b=await put(`chop-city/images/${p.id}-${id()}${ext}`,f.buffer,blobOpts({contentType:f.mimetype}));p.images.push(b.url);}p.image=p.images[0];}
+    p.updatedAt=now();await writeState(s);
+    await telegram(`✏️ <b>Produit modifié</b>\n📦 ${esc(p.name)}\n📌 Statut: ${esc(p.status)}\n🆔 <code>${esc(p.id)}</code>`);
+    res.json({ok:true,product:p});
+  }catch(e){res.status(500).json({error:'Modification impossible'});}
 });
 
-app.post("/api/report", async (req, res) => {
-  const { product, reason, message } = req.body || {};
-  if (!message && !reason) return res.status(400).json({ error: "Signalement vide." });
+app.delete('/api/products/:id', async(req,res)=>{if(!admin(req))return res.status(403).json({error:'Accès refusé'});try{const s=await readState();const i=s.products.findIndex(p=>p.id===req.params.id);if(i<0)return res.sendStatus(404);const p=s.products[i];s.products.splice(i,1);await writeState(s);await telegram(`🗑️ <b>Produit supprimé</b>\n📦 ${esc(p.name)}\n🆔 <code>${esc(p.id)}</code>`);res.json({ok:true});}catch(e){res.status(500).json({error:'Suppression impossible'});}});
 
-  await notifyTelegram(
-    `⚠️ SIGNALEMENT — CHOP CITY\n\n` +
-    `📦 Produit: ${product || "Non précisé"}\n` +
-    `📌 Motif: ${reason || "Non précisé"}\n` +
-    `📝 ${message || ""}`
-  );
+app.get('/api/stats',async(req,res)=>{if(!admin(req))return res.status(403).json({error:'Accès refusé'});try{const s=await readState();res.json({products:s.products.length,approved:s.products.filter(p=>p.status==='approved').length,pending:s.products.filter(p=>p.status==='pending').length,views:s.products.reduce((a,p)=>a+p.views,0),contacts:s.products.reduce((a,p)=>a+p.contacts,0),reports:s.reports.length});}catch(e){res.status(500).json({error:'stats'});}});
 
-  res.json({ ok: true });
-});
+app.post('/api/report',async(req,res)=>{try{const s=await readState();const r={id:id(),subject:req.body.subject||'Sans sujet',message:req.body.message||'',at:now()};s.reports.push(r);await writeState(s);await telegram(`⚠️ <b>Nouveau signalement</b>\n\n<b>${esc(r.subject)}</b>\n${esc(r.message)}`);res.json({ok:true});}catch(e){res.status(500).json({error:'Erreur'});}});
 
-export default app;
+// Page partageable d'un produit avec métadonnées Open Graph.
+app.get('/p/:id',async(req,res)=>{try{const s=await readState();const p=s.products.find(x=>x.id===req.params.id&&x.status==='approved');if(!p)return res.status(404).send('Produit introuvable');const image=p.image||OG;const url=`${SITE}p/${encodeURIComponent(p.id)}`;res.set('Content-Type','text/html; charset=utf-8');res.send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(p.name)} — CHOP CITY</title><meta name="description" content="${esc(p.price)} — ${esc(p.description)}"><meta property="og:type" content="product"><meta property="og:title" content="${esc(p.name)} — CHOP CITY"><meta property="og:description" content="${esc(p.price)} • ${esc(p.seller)}"><meta property="og:url" content="${url}"><meta property="og:image" content="${image}"><meta property="og:image:secure_url" content="${image}"><meta property="og:image:type" content="image/jpeg"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(p.name)} — CHOP CITY"><meta name="twitter:description" content="${esc(p.price)}"><meta name="twitter:image" content="${image}"><meta http-equiv="refresh" content="0;url=${SITE}"></head><body style="background:#070707;color:white;font-family:Arial;padding:30px">⚡ CHOP CITY — ${esc(p.name)}</body></html>`);}catch(e){res.status(500).send('Erreur');}});
+
+module.exports = app;

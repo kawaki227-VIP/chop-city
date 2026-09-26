@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { put, list, del } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 import crypto from "node:crypto";
 
 const app = express();
@@ -14,6 +14,13 @@ app.use(express.json({ limit: "1mb" }));
 const ADMIN_KEY = process.env.ADMIN_KEY || "";
 const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || "22781289418";
 const PRODUCTS_FILE = "chop-city/products.json";
+const BLOB_TOKEN = process.env.CHOPBLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN || "";
+const BLOB_STORE_ID = process.env.CHOPBLOB_STORE_ID || "";
+
+const blobOptions = {
+  token: BLOB_TOKEN,
+  ...(BLOB_STORE_ID ? { storeId: BLOB_STORE_ID } : {})
+};
 
 function adminOk(req) {
   const key = req.headers["x-admin-key"];
@@ -21,7 +28,7 @@ function adminOk(req) {
 }
 
 async function getBlobUrl(pathname) {
-  const result = await list({ prefix: pathname });
+  const result = await list({ prefix: pathname, ...blobOptions });
   return result.blobs?.find(b => b.pathname === pathname)?.url || null;
 }
 
@@ -43,7 +50,8 @@ async function saveProducts(products) {
     access: "public",
     contentType: "application/json",
     addRandomSuffix: false,
-    allowOverwrite: true
+    allowOverwrite: true,
+    ...blobOptions
   });
 }
 
@@ -67,7 +75,7 @@ async function notifyTelegram(text) {
 }
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, name: "CHOP CITY", version: "3.0.0" });
+  res.json({ ok: true, name: "CHOP CITY", version: "4.0.0" });
 });
 
 app.get("/api/config", (_req, res) => {
@@ -103,7 +111,8 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
         req.file.buffer,
         {
           access: "public",
-          contentType: req.file.mimetype
+          contentType: req.file.mimetype,
+          ...blobOptions
         }
       );
       image = blob.url;
@@ -158,7 +167,7 @@ app.put("/api/products/:id", upload.single("image"), async (req, res) => {
       const blob = await put(
         `chop-city/products/${crypto.randomUUID()}.${ext || "jpg"}`,
         req.file.buffer,
-        { access: "public", contentType: req.file.mimetype }
+        { access: "public", contentType: req.file.mimetype, ...blobOptions }
       );
       image = blob.url;
     }

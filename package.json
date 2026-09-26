@@ -1,7 +1,0 @@
-{
-  "name":"chop-city-v7",
-  "version":"7.0.0",
-  "private":true,
-  "scripts":{"dev":"vercel dev"},
-  "dependencies":{"@vercel/blob":"latest","express":"latest","multer":"latest"}
-}
